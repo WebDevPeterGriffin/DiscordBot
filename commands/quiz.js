@@ -1,28 +1,56 @@
 const { SlashCommandBuilder } = require("discord.js");
+const fs = require("fs");
+const path = require("path");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("quiz")
-    .setDescription("Post this week’s quiz"),
+    .setDescription("Post the current quiz"),
+
   async execute(interaction) {
-    const allowedRoleIds = ["1353401702522421358", "1353401445755654244"];
-    const serverOwnerId = interaction.guild.ownerId;
+    // 👮 Role and permission check
+    const allowedRoles = [
+      "1353401702522421358", // Moderator
+      "1353401445755654244", // Admin
+    ];
 
     const member = await interaction.guild.members.fetch(interaction.user.id);
 
-    const hasAccess =
-      interaction.user.id === serverOwnerId ||
-      member.roles.cache.some((role) => allowedRoleIds.includes(role.id));
+    const isAllowed = member.roles.cache.some((role) =>
+      allowedRoles.includes(role.id),
+    );
 
-    if (!hasAccess) {
+    const isOwner = interaction.guild.ownerId === interaction.user.id;
+
+    if (!isAllowed && !isOwner) {
       return interaction.reply({
-        content: "🚫 Only Moderators and Admins can use this command.",
-        flags: 1 << 6, // ✅ Replaces deprecated "ephemeral: true"
+        content:
+          "🚫 Only Admins, Moderators, or the Server Owner can use this command.",
+        ephemeral: true,
       });
     }
 
-    await interaction.reply(
-      "📘 **Weekly Quiz:**\nWhat does `useEffect` do?\nA. Renders CSS\nB. Handles state\nC. Performs side effects\nD. Creates components\n\nUse `/answer <letter>` to submit!",
-    );
+    try {
+      const quizPath = path.join(__dirname, "../quizzes.json");
+      const quiz = JSON.parse(fs.readFileSync(quizPath, "utf-8"));
+
+      await interaction.reply(
+        `📘 **Weekly Quiz:**\n${quiz.question}\n` +
+          `A. ${quiz.options[0]}\n` +
+          `B. ${quiz.options[1]}\n` +
+          `C. ${quiz.options[2]}\n` +
+          `D. ${quiz.options[3]}\n\n` +
+          `Use \`/answer <letter>\` to submit!`,
+      );
+    } catch (err) {
+      console.error("❌ Error in /quiz command:", err);
+      console.log("📖 Loaded quiz:", quiz);
+      console.log("💡 /quiz command triggered");
+      await interaction.reply({
+        content:
+          "❌ Couldn’t load the quiz. Ask a mod to save one from the editor.",
+        ephemeral: true,
+      });
+    }
   },
 };
