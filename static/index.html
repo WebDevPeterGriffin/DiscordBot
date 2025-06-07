@@ -1,59 +1,160 @@
 <!doctype html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <title>Quiz Editor</title>
+    <title>🧠 Web Dev Peter Quiz Editor</title>
+    <style>
+      body {
+        font-family: Arial;
+        max-width: 500px;
+        margin: 2rem auto;
+      }
+      .option-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .option-group input[type="text"] {
+        flex: 1;
+      }
+      button.remove {
+        background: red;
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 2px 6px;
+      }
+    </style>
   </head>
   <body>
-    <h2>🧠 Web Dev Peter Quiz Editor</h2>
+    <h2>🧠 <b>Web Dev Peter Quiz Editor</b></h2>
 
-    <form id="quizForm">
-      <label>Question</label><br />
-      <input name="question" required /><br /><br />
+    <label
+      >Question<br />
+      <input type="text" id="question" required />
+    </label>
 
-      <label>Option A</label><br />
-      <input name="a" required /><br />
-      <label>Option B</label><br />
-      <input name="b" required /><br />
-      <label>Option C</label><br />
-      <input name="c" required /><br />
-      <label>Option D</label><br />
-      <input name="d" required /><br /><br />
+    <div id="options-container"></div>
 
-      <label>Correct Answer</label><br />
-      <select name="answer">
-        <option value="A">A</option>
-        <option value="B">B</option>
-        <option value="C">C</option>
-        <option value="D">D</option></select
-      ><br /><br />
+    <button id="add-option">+ Add Option</button>
 
-      <button type="submit">Save Quiz</button>
-    </form>
-
+    <br /><br />
+    <button onclick="saveQuiz()">💾 Save Quiz</button>
     <p id="status"></p>
 
     <script>
-      document.getElementById("quizForm").onsubmit = async (e) => {
-        e.preventDefault();
-        const form = e.target;
+      const container = document.getElementById("options-container");
+      const addOptionBtn = document.getElementById("add-option");
 
-        const quiz = {
-          question: form.question.value,
-          options: [form.a.value, form.b.value, form.c.value, form.d.value],
-          answer: form.answer.value,
+      let optionCount = 0;
+      const maxOptions = 5;
+      const minOptions = 2;
+
+      function createOption(label = "", checked = false) {
+        if (optionCount >= maxOptions) return;
+
+        const group = document.createElement("div");
+        group.className = "option-group";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = `Option ${String.fromCharCode(65 + optionCount)}`;
+        input.value = label;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.title = "Correct Answer";
+        checkbox.checked = checked;
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "remove";
+        removeBtn.textContent = "✖";
+        removeBtn.onclick = () => {
+          group.remove();
+          optionCount--;
+          updateRemoveButtons();
         };
 
-        const res = await fetch("/setquiz", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(quiz),
+        group.appendChild(input);
+        group.appendChild(checkbox);
+        group.appendChild(removeBtn);
+        container.appendChild(group);
+
+        optionCount++;
+        updateRemoveButtons();
+      }
+
+      function updateRemoveButtons() {
+        const buttons = container.querySelectorAll(".remove");
+        buttons.forEach((btn) => {
+          btn.disabled = optionCount <= minOptions;
+        });
+      }
+
+      function saveQuiz() {
+        const question = document.getElementById("question").value.trim();
+        const groups = container.querySelectorAll(".option-group");
+
+        const options = [];
+        const correctAnswers = [];
+
+        groups.forEach((group, i) => {
+          const text = group.querySelector('input[type="text"]').value.trim();
+          const checked = group.querySelector('input[type="checkbox"]').checked;
+
+          if (text !== "") {
+            options.push(text);
+            if (checked) {
+              correctAnswers.push(String.fromCharCode(65 + i));
+            }
+          }
         });
 
-        const result = await res.json();
-        document.getElementById("status").innerText =
-          result.message || result.error;
-      };
+        if (!question) {
+          return showStatus("❌ Question is required", true);
+        }
+
+        if (options.length < minOptions || options.length > maxOptions) {
+          return showStatus(
+            `❌ Enter between ${minOptions} and ${maxOptions} options`,
+            true,
+          );
+        }
+
+        if (correctAnswers.length === 0) {
+          return showStatus("❌ Select at least one correct answer", true);
+        }
+
+        fetch("/save-quiz", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question,
+            options,
+            answer: correctAnswers,
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              showStatus("✅ Quiz saved successfully");
+            } else {
+              showStatus("❌ Failed to save quiz", true);
+            }
+          });
+      }
+
+      function showStatus(msg, error = false) {
+        const status = document.getElementById("status");
+        status.textContent = msg;
+        status.style.color = error ? "red" : "green";
+      }
+
+      // Init with 2 options
+      createOption();
+      createOption();
+
+      addOptionBtn.onclick = () => createOption();
     </script>
   </body>
 </html>

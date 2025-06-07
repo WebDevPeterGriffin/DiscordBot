@@ -1,30 +1,53 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-
 const app = express();
-app.use(express.json());
-app.use(express.static("static")); // serve HTML from static folder
 
-app.post("/setquiz", (req, res) => {
+app.use(express.static(".")); // serve index.html
+app.use(express.json());
+
+const QUIZ_PATH = path.join(__dirname, "quizzes.json");
+
+app.post("/save-quiz", (req, res) => {
   const { question, options, answer } = req.body;
 
+  // Validate format
   if (
     !question ||
     !Array.isArray(options) ||
-    options.length !== 4 ||
-    !["A", "B", "C", "D"].includes(answer)
+    options.length < 2 ||
+    options.length > 5
   ) {
-    return res.status(400).json({ error: "Invalid quiz format" });
+    return res.status(400).json({
+      success: false,
+      error: "Invalid number of options (2–5 required).",
+    });
   }
 
-  const quiz = { question, options, answer };
-  fs.writeFileSync("quizzes.json", JSON.stringify(quiz, null, 2));
+  if (!Array.isArray(answer) || answer.length === 0) {
+    return res
+      .status(400)
+      .json({ success: false, error: "At least one correct answer required." });
+  }
 
-  res.json({ message: "✅ Quiz saved successfully" });
+  const quiz = {
+    question: question.trim(),
+    options: options.map((o) => o.trim()),
+    answer: answer.map((a) => a.toUpperCase()),
+  };
+
+  try {
+    fs.writeFileSync(QUIZ_PATH, JSON.stringify(quiz, null, 2));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Failed to write quiz:", err);
+    res.status(500).json({ success: false });
+  }
 });
 
-app.get("/", (_, res) => res.send("Bot is alive"));
+app.get("/", (_, res) => {
+  res.sendFile(path.join(__dirname, "static", "index.html"));
+});
 
 app.listen(3000, () => {
   console.log("🌐 Express server running");
